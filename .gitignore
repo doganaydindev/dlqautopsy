@@ -1,0 +1,11 @@
+*.db
+go.sum
+*.log
+*.out
+*.exe
+*.dll
+*.so
+*.dylib
+dlqautopsy
+
+internal_docs/
