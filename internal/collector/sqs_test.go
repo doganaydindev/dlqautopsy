@@ -9,7 +9,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 )
 
 type mockSQS struct {

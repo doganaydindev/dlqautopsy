@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgnydn/dlqautopsy/internal/model"
+	"github.com/doganaydindev/dlqautopsy/internal/model"
 )
 
 func setupTestDB(t *testing.T) *DB {

@@ -7,8 +7,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/dgnydn/dlqautopsy/internal/analyzer"
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/analyzer"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 	"github.com/fatih/color"
 )
 

@@ -1,0 +1,11 @@
+[
+  {"id": "m-01", "receive_count": 4, "sent_at": "2026-02-24T10:17:00Z", "body": "{\"service\":\"payment-service\",\"error\":\"failed to connect to host=db-primary.internal.example.com: connection timeout: context deadline exceeded\",\"payload\":{\"paymentId\":\"pay_1\",\"amount\":149.99}}"},
+  {"id": "m-02", "receive_count": 4, "sent_at": "2026-02-24T10:17:30Z", "body": "{\"service\":\"payment-service\",\"error\":\"failed to connect to host=db-primary.internal.example.com: connection timeout: context deadline exceeded\",\"payload\":{\"paymentId\":\"pay_2\",\"amount\":12.00}}"},
+  {"id": "m-03", "receive_count": 4, "sent_at": "2026-02-24T10:18:10Z", "body": "{\"service\":\"session-service\",\"error\":\"dial tcp 10.0.14.72:6379: connect: connection refused\",\"payload\":{\"sessionId\":\"sess_1\"}}"},
+  {"id": "m-04", "receive_count": 4, "sent_at": "2026-02-24T10:19:00Z", "body": "{\"service\":\"session-service\",\"error\":\"dial tcp 10.0.14.73:6379: connect: connection refused\",\"payload\":{\"sessionId\":\"sess_2\"}}"},
+  {"id": "m-05", "receive_count": 1, "sent_at": "2026-02-24T10:14:32Z", "body": "{\"service\":\"order-service\",\"error\":\"json: cannot unmarshal string into Go struct field Order.Amount of type float64\",\"payload\":{\"orderId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\"amount\":\"ninety-nine\"}}"},
+  {"id": "m-06", "receive_count": 1, "sent_at": "2026-02-24T10:15:01Z", "body": "{\"service\":\"user-service\",\"error\":\"validation failed: required field 'email' is missing in request body\",\"payload\":{\"userId\":\"usr_1\"}}"},
+  {"id": "m-07", "receive_count": 2, "sent_at": "2026-02-24T10:22:30Z", "body": "{\"service\":\"inventory-service\",\"error\":\"Error 1205 (HY000): Lock wait timeout exceeded; try restarting transaction\",\"payload\":{\"sku\":\"SKU-5678\"}}"},
+  {"id": "m-08", "receive_count": 3, "sent_at": "2026-02-24T10:18:30Z", "body": "{\"service\":\"api-gateway\",\"error\":\"401 Unauthorized: token expired at 2026-02-24T09:45:00Z\",\"payload\":{\"endpoint\":\"/api/v1/orders\"}}"},
+  {"id": "m-09", "receive_count": 1, "sent_at": "2026-02-24T10:20:00Z", "body": "plain text body: something nobody anticipated"}
+]

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgnydn/dlqautopsy/internal/model"
+	"github.com/doganaydindev/dlqautopsy/internal/model"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -442,6 +442,40 @@ func (db *DB) GetPayloadShapes(runName, failureClass string) (map[string]int, er
 			return nil, err
 		}
 		shapes[shape] = cnt
+	}
+	return shapes, rows.Err()
+}
+
+// ShapeCount is one payload shape and how many messages had it.
+type ShapeCount struct {
+	Shape string
+	Count int
+}
+
+// GetPayloadShapesForClassification returns the payload shapes for one
+// (failure class, classification) pair, most common first. Ties are ordered
+// by shape so the output is stable between runs.
+func (db *DB) GetPayloadShapesForClassification(runName, failureClass, classification string) ([]ShapeCount, error) {
+	query := `
+	SELECT payload_shape, COUNT(*) as cnt
+	FROM failure_records
+	WHERE run_name = ? AND failure_class = ? AND classification = ? AND payload_shape != ''
+	GROUP BY payload_shape
+	ORDER BY cnt DESC, payload_shape ASC
+	`
+	rows, err := db.conn.Query(query, runName, failureClass, classification)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var shapes []ShapeCount
+	for rows.Next() {
+		var s ShapeCount
+		if err := rows.Scan(&s.Shape, &s.Count); err != nil {
+			return nil, err
+		}
+		shapes = append(shapes, s)
 	}
 	return shapes, rows.Err()
 }

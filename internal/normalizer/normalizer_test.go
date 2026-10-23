@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgnydn/dlqautopsy/internal/model"
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/model"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 )
 
 func TestExtractErrorAndShape(t *testing.T) {
@@ -84,7 +84,7 @@ func TestNormalize(t *testing.T) {
 		{
 			name:      "Strip timestamps",
 			errorText: "timeout at 2026-02-24T10:15:22Z or 2026-02-24 10:15:22",
-			wantNorm:  "timeout at [TIMESTAMP]Z or [TIMESTAMP]",
+			wantNorm:  "timeout at [TIMESTAMP] or [TIMESTAMP]",
 		},
 		{
 			name:      "Strip IPs",
@@ -99,7 +99,7 @@ func TestNormalize(t *testing.T) {
 		{
 			name:      "Combined",
 			errorText: "error at 2026-02-24T10:15:22Z from 10.0.0.1:8080 uuid a1b2c3d4-e5f6-7890-abcd-ef1234567890 file main.go:88 addr 0x123abc",
-			wantNorm:  "error at [TIMESTAMP]Z from [IP] uuid [UUID] file main.go:[LINE] addr [ADDR]",
+			wantNorm:  "error at [TIMESTAMP] from [IP] uuid [UUID] file main.go:[LINE] addr [ADDR]",
 		},
 	}
 
@@ -166,7 +166,7 @@ func TestNormalizer_Run(t *testing.T) {
 	if fr.PayloadShape != "error" {
 		t.Errorf("expected payload shape 'error', got %s", fr.PayloadShape)
 	}
-	expectedNorm := "timeout at [TIMESTAMP]Z"
+	expectedNorm := "timeout at [TIMESTAMP]"
 	if fr.NormalizedError != expectedNorm {
 		t.Errorf("expected NormalizedError '%s', got '%s'", expectedNorm, fr.NormalizedError)
 	}

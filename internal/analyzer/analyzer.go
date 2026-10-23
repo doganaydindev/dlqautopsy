@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 )
 
 // Timeline represents the analytical aggregation of a failure class.
@@ -109,11 +109,14 @@ func (a *Analyzer) Run(ctx context.Context) (*ReportSummary, error) {
 			summary.WindowEnd = t.LastOccurrence
 		}
 
-		// Enrich with payload shapes from storage
-		shapes, err := a.db.GetPayloadShapes(a.runName, t.FailureClass)
-		if err == nil && len(shapes) > 0 {
-			for shape := range shapes {
-				t.PayloadShapes = append(t.PayloadShapes, shape)
+		// Enrich with payload shapes from storage. Scoped to this row's
+		// classification: one failure class (e.g. "Downstream Dependency")
+		// can appear as several rows, and each row should only list the
+		// shapes of its own messages.
+		shapes, err := a.db.GetPayloadShapesForClassification(a.runName, t.FailureClass, t.RecommendedAction)
+		if err == nil {
+			for _, s := range shapes {
+				t.PayloadShapes = append(t.PayloadShapes, s.Shape)
 			}
 		}
 	}
@@ -150,7 +153,7 @@ func (a *Analyzer) buildTimelines(ctx context.Context) ([]Timeline, error) {
 			SELECT COUNT(*) 
 			FROM failure_records f2 
 			JOIN raw_events r2 ON f2.run_name = r2.run_name AND f2.raw_event_id = r2.id
-			WHERE f2.run_name = ? AND f2.failure_class = f.failure_class
+			WHERE f2.run_name = ? AND f2.failure_class = f.failure_class AND f2.classification = f.classification
 			GROUP BY strftime('%Y-%m-%d %H', r2.first_seen)
 			ORDER BY COUNT(*) DESC 
 			LIMIT 1

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 )
 
 func TestWriteMarkdown(t *testing.T) {

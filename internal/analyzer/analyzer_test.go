@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgnydn/dlqautopsy/internal/model"
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/model"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 )
 
 func TestAnalyzeBurst(t *testing.T) {

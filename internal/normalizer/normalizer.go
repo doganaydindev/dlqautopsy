@@ -10,14 +10,16 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/dgnydn/dlqautopsy/internal/model"
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/model"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 )
 
 var (
-	memAddrRegex    = regexp.MustCompile(`0x[0-9a-fA-F]+`)
-	uuidRegex       = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
-	timestampRegex  = regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}`)
+	memAddrRegex = regexp.MustCompile(`0x[0-9a-fA-F]+`)
+	uuidRegex    = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	// Optional fractional seconds and zone suffix are consumed too, so that
+	// "...:22.123Z" and "...:22.456Z" normalize to the same signature.
+	timestampRegex  = regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?`)
 	ipRegex         = regexp.MustCompile(`\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?`)
 	lineNumberRegex = regexp.MustCompile(`\.go:\d+`)
 )

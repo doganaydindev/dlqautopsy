@@ -1,4 +1,4 @@
-module github.com/dgnydn/dlqautopsy
+module github.com/doganaydindev/dlqautopsy
 
 go 1.26.0
 

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/dgnydn/dlqautopsy/internal/storage"
+	"github.com/doganaydindev/dlqautopsy/internal/storage"
 )
 
 // Failure class constants.
@@ -117,7 +117,29 @@ var rules = []rule{
 			retryVerdict:   VerdictNeedsInvestigation,
 		},
 	},
+	// Lock contention is checked before the generic "timeout" keyword below,
+	// otherwise "lock wait timeout" would be classified as a downstream timeout.
+	{
+		keywords: []string{"deadlock", "lock wait timeout"},
+		result: classificationResult{
+			class:          ClassTransientError,
+			classification: "Database deadlock or lock contention. Safe to retry with backoff.",
+			severity:       SeverityWarning,
+			retryVerdict:   VerdictRetryWithBackoff,
+		},
+	},
 	// Downstream Dependency: external service or database issues, generally transient.
+	// HTTP 5xx is checked before the generic "timeout" keyword so that
+	// "504 gateway timeout" gets the HTTP classification.
+	{
+		keywords: []string{"503", "service unavailable", "502", "bad gateway", "504", "gateway timeout"},
+		result: classificationResult{
+			class:          ClassDownstreamDependency,
+			classification: "Downstream HTTP error. Service temporarily unavailable.",
+			severity:       SeverityWarning,
+			retryVerdict:   VerdictSafeToRetry,
+		},
+	},
 	{
 		keywords: []string{"connection timeout", "timeout", "deadline exceeded", "context deadline"},
 		result: classificationResult{
@@ -132,15 +154,6 @@ var rules = []rule{
 		result: classificationResult{
 			class:          ClassDownstreamDependency,
 			classification: "Downstream refused connection. Service may be down.",
-			severity:       SeverityWarning,
-			retryVerdict:   VerdictSafeToRetry,
-		},
-	},
-	{
-		keywords: []string{"503", "service unavailable", "502", "bad gateway", "504", "gateway timeout"},
-		result: classificationResult{
-			class:          ClassDownstreamDependency,
-			classification: "Downstream HTTP error. Service temporarily unavailable.",
 			severity:       SeverityWarning,
 			retryVerdict:   VerdictSafeToRetry,
 		},
@@ -183,15 +196,6 @@ var rules = []rule{
 		},
 	},
 	// Transient Errors: concurrency or throttling issues.
-	{
-		keywords: []string{"deadlock", "lock wait timeout"},
-		result: classificationResult{
-			class:          ClassTransientError,
-			classification: "Database deadlock or lock contention. Safe to retry with backoff.",
-			severity:       SeverityWarning,
-			retryVerdict:   VerdictRetryWithBackoff,
-		},
-	},
 	{
 		keywords: []string{"rate limit", "throttl", "429", "too many requests"},
 		result: classificationResult{
