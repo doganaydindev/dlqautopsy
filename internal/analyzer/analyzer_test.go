@@ -17,54 +17,30 @@ func TestAnalyzeBurst(t *testing.T) {
 		count    int
 		want     string
 	}{
-		{
-			name:     "Too few messages",
-			duration: time.Minute,
-			count:    3,
-			want:     "",
-		},
-		{
-			name:     "Concentrated burst",
-			duration: 1 * time.Minute,
-			count:    10,
-			want:     "Concentrated burst",
-		},
-		{
-			name:     "Short window",
-			duration: 5 * time.Minute,
-			count:    10,
-			want:     "Short window",
-		},
-		{
-			name:     "Medium window",
-			duration: 30 * time.Minute,
-			count:    10,
-			want:     "Medium window",
-		},
-		{
-			name:     "Sustained high rate",
-			duration: 2 * time.Hour,
-			count:    300, // 150/hr
-			want:     "Sustained high rate",
-		},
-		{
-			name:     "Long window, low rate",
-			duration: 2 * time.Hour,
-			count:    10,
-			want:     "",
-		},
+		{"single message", time.Minute, 1, ""},
+		{"short window", 14 * time.Second, 35, "35 messages sent and ingested within 14s (earliest SentTimestamp to latest ingestion)"},
+		{"sub-second", 300 * time.Millisecond, 2, "2 messages sent and ingested within less than 1s (earliest SentTimestamp to latest ingestion)"},
+		{"long window", 2 * time.Hour, 300, "300 messages sent and ingested within 2h 0m 0s (earliest SentTimestamp to latest ingestion)"},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := analyzeBurst(tt.duration, tt.count)
-			if tt.want == "" && got != "" {
-				t.Errorf("expected empty burst string, got %q", got)
-			}
-			if tt.want != "" && !strings.Contains(got, tt.want) {
-				t.Errorf("expected burst string to contain %q, got %q", tt.want, got)
+			if got != tt.want {
+				t.Errorf("analyzeBurst(%s, %d) = %q, want %q", tt.duration, tt.count, got, tt.want)
 			}
 		})
+	}
+}
+
+// The window is based on ingestion time, so the text must not claim a cause.
+func TestAnalyzeBurstMakesNoCausalClaims(t *testing.T) {
+	for _, d := range []time.Duration{time.Second, 5 * time.Minute, 30 * time.Minute, 3 * time.Hour} {
+		got := strings.ToLower(analyzeBurst(d, 500))
+		for _, banned := range []string{"likely", "single event", "deploy", "outage", "incident", "burst"} {
+			if strings.Contains(got, banned) {
+				t.Errorf("analyzeBurst(%s) = %q contains %q", d, got, banned)
+			}
+		}
 	}
 }
 

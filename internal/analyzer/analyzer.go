@@ -27,7 +27,10 @@ type Timeline struct {
 	SamplePayload     string    `json:"sample_payload"`
 	SampleError       string    `json:"sample_error"`
 	PayloadShapes     []string  `json:"payload_shapes,omitempty"`
-	BurstAnalysis     string    `json:"burst_analysis,omitempty"` // human-readable burst assessment
+	// BurstAnalysis states how close together the group's messages are, in
+	// plain numbers. The window runs from the earliest SQS SentTimestamp to
+	// the latest ingestion time, so it does not say why they failed.
+	BurstAnalysis string `json:"burst_analysis,omitempty"`
 }
 
 // TriageGroup groups failure classes by urgency for the executive summary.
@@ -250,25 +253,21 @@ func (a *Analyzer) buildTimelines(ctx context.Context) ([]Timeline, error) {
 	return timelines, rows.Err()
 }
 
-// analyzeBurst detects whether a failure class represents a concentrated burst.
+// analyzeBurst describes how close together a group's messages are. The
+// duration is measured from the earliest SQS SentTimestamp in the group to
+// the latest time dlqautopsy ingested one of its messages (last_seen is set
+// by the collector at ingestion). It therefore includes time spent waiting in
+// the queues and the ingestion itself, and is no evidence of a single cause,
+// so the text only states the numbers.
 func analyzeBurst(duration time.Duration, count int) string {
-	if count < 5 {
+	if count < 2 {
 		return ""
 	}
-	if duration < 2*time.Minute {
-		return fmt.Sprintf("Concentrated burst: %d failures in %s. Likely a single event (deploy, config push, dependency crash).", count, formatDuration(duration))
+	within := "within " + formatDuration(duration)
+	if duration < time.Second {
+		within = "within less than 1s"
 	}
-	if duration < 15*time.Minute {
-		return fmt.Sprintf("Short window: %d failures over %s. Consistent with a dependency outage or rolling deploy.", count, formatDuration(duration))
-	}
-	if duration < time.Hour {
-		return fmt.Sprintf("Medium window: %d failures over %s.", count, formatDuration(duration))
-	}
-	rate := float64(count) / duration.Hours()
-	if rate > 100 {
-		return fmt.Sprintf("Sustained high rate: %.0f failures/hour over %s.", rate, formatDuration(duration))
-	}
-	return ""
+	return fmt.Sprintf("%d messages sent and ingested %s (earliest SentTimestamp to latest ingestion)", count, within)
 }
 
 // buildTriageGroups sorts failure classes into actionable triage buckets.

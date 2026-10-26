@@ -131,7 +131,7 @@ func writeTimelineDetailMarkdown(w io.Writer, index int, t analyzer.Timeline) {
 		fmt.Fprintf(w, "| Peak Rate | ⚠️ %d messages/hour |\n", t.PeakHourlySpike)
 	}
 	if t.BurstAnalysis != "" {
-		fmt.Fprintf(w, "| Burst | %s |\n", t.BurstAnalysis)
+		fmt.Fprintf(w, "| Spread | %s |\n", t.BurstAnalysis)
 	}
 	fmt.Fprintf(w, "| Action | %s |\n", t.RecommendedAction)
 	fmt.Fprintln(w)

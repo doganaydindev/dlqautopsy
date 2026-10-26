@@ -69,20 +69,15 @@ Example: `{"error": "timeout", "payload": {"action": "process", "id": 123}}` pro
 
 The payload shape enables grouping messages that are structurally identical even when their error signatures differ. The Analyzer includes per-class payload shape breakdowns in the report to help identify whether a failure class affects a single message schema or multiple.
 
-## Burst Analysis
+## Time Window and Spread
 
-The Analyzer performs burst detection on each failure class based on the temporal window:
+For each group the Analyzer reports a time window and a one-line "Spread" (`burst_analysis` in JSON), for example:
 
-| Window Duration     | Assessment                                                                            |
-| ------------------- | ------------------------------------------------------------------------------------- |
-| < 2 minutes         | **Concentrated burst**: Likely a single event (deploy, config push, dependency crash) |
-| 2–15 minutes        | **Short window**: Consistent with a dependency outage or rolling deploy               |
-| 15–60 minutes       | **Medium window**: Extended incident                                                  |
-| > 1 hour, high rate | **Sustained high rate**: Reports failures/hour metric                                 |
+`35 messages sent and ingested within 14s (earliest SentTimestamp to latest ingestion)`
 
-Burst analysis is displayed in the text, markdown and JSON reports.
+Note what the window measures: the start is the earliest SQS `SentTimestamp` in the group, and the end is the latest `last_seen`, which is the time `dlqautopsy inspect` ingested the message (the collector sets it to the current time). It includes the time messages spent in the source queue and the DLQ, and the ingestion itself. If you ingest a DLQ hours after the failures, the window includes that delay. SQS does not record when a consumer failed, so the window cannot tell you whether the failures came from a single event, and the report does not claim that. (Before v0.1.1 this line guessed at causes, such as "Likely a single event".)
 
-Note what the window measures: the start is the earliest SQS `SentTimestamp` in the group, and the end is the latest `last_seen`, which is the time `dlqautopsy inspect` ingested the message (the collector sets it to the current time). If you ingest a DLQ hours after the failures, the window and the burst assessment include that delay.
+The Spread is shown in the text, markdown and JSON reports for groups with at least 2 messages.
 
 ## Severity Levels
 

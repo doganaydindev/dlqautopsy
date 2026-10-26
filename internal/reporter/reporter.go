@@ -196,7 +196,7 @@ func writeTimelineDetail(w io.Writer, index int, t analyzer.Timeline) {
 	}
 
 	if t.BurstAnalysis != "" {
-		labelStyle.Fprintf(w, "      Burst:          ")
+		labelStyle.Fprintf(w, "      Spread:         ")
 		warn.Fprintf(w, "%s\n", t.BurstAnalysis)
 	}
 
