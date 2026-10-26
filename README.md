@@ -7,7 +7,7 @@ The Dead Letter Autopsy Engine is a deterministic analyzer for failed async jobs
 ## What dlqautopsy Does Differently
 
 - **Deterministic Classification**: No machine learning. Ordered keyword rules assign a failure class, and normalized error signatures group identical errors.
-- **Timeline Reconstruction**: Shows when each failure group started and how concentrated it was.
+- **Timeline Reconstruction**: Shows each failure group's time window, from the earliest SQS `SentTimestamp` to the time the messages were ingested.
 - **Actionable Output**: Gives each group of failures a retry verdict: safe to retry, retry with backoff, do not retry, or needs investigation.
 - **Offline First**: All data is ingested into a local SQLite database for rapid, offline analysis. No SaaS, no telemetry, no cloudy dashboards.
 
@@ -53,7 +53,7 @@ dlqautopsy inspect --name my-incident --queue-url <url> --purge --region us-west
 #    Prints a classification summary after completion.
 dlqautopsy classify --name my-incident
 
-# 3. Generate a report with executive summary, triage groups, and burst analysis
+# 3. Generate a report with executive summary, triage groups, and time windows
 dlqautopsy report --name my-incident
 dlqautopsy report --name my-incident --format json
 dlqautopsy report --name my-incident --format markdown
@@ -152,7 +152,7 @@ $ dlqautopsy report --name incident-0224
   ║          DEAD LETTER AUTOPSY REPORT                 ║
   ╚══════════════════════════════════════════════════════╝
   Run: incident-0224
-  Window: 2026-10-26 18:23:48 → 2026-10-26 18:24:03 (14s)
+  Window: 2026-10-26 18:56:42 → 2026-10-26 18:56:57 (14s)
 
   ── Executive Summary ──────────────────────────────────
   200 messages across 7 failure classes, split into 15 groups by cause (window: 14s). 55% (110 messages) are safe to retry now. 24% (48 messages) should NOT be retried (poison messages or config errors). 21% (42 messages) need manual investigation. Largest class: "Downstream Dependency" with 70 messages (35%).
@@ -180,7 +180,7 @@ $ dlqautopsy diff --name incident-0224 --compare incident-0224-later
 
   🆕 NEW FAILURE CLASSES (appeared in incident-0224-later)
   ──────────────────────────────────────────
-    + Unknown-1d89be31                 3 msgs [WARNING]
+    + Unknown-64eb2e51                 3 msgs [WARNING]
 
   ✅ RESOLVED (gone from incident-0224-later)
   ──────────────────────────────────────────
@@ -197,6 +197,26 @@ $ dlqautopsy diff --name incident-0224 --compare incident-0224-later
   ──────────────────────────────────────────
     ▼ Poison Message               40 → 12 (-28, -70%)
     ▼ Transient Error              24 → 5 (-19, -79%)
+```
+
+## Changes in v0.1.1
+
+- **Long numbers in error signatures**: runs of 5 or more digits (request IDs, PIDs, byte counts, epoch times) are replaced with `[NUM]` before hashing, so `invoice 14030 is already closed` and `invoice 14031 is already closed` share one signature. Shorter numbers are kept, so HTTP status codes (`503`) and MySQL error codes (`1213`) still split signatures and still match the classification rules. See [docs/failure-model.md](docs/failure-model.md).
+- **Spread instead of burst guesses**: the per-group "Burst" line, which said things like "Likely a single event", is now "Spread" and only states how many messages fall between the earliest `SentTimestamp` and the latest ingestion. The JSON field is still `burst_analysis`; its text changed.
+- **JSON field renamed**: `peak_hourly_spike` is now `busiest_hour_count`. It was never a rate: it is the number of messages in the busiest UTC clock hour by `SentTimestamp`. Text and markdown show it as "Busiest Hour", only when a group spans more than one clock hour. Update any script that reads the old field.
+- **`inspect --empty-receives N`**: stop after N consecutive empty receives instead of the first one. The default is 1, the old behaviour.
+
+`inspect --empty-receives 2` against the local moto queue while a separate script sends 4 messages to the DLQ, waits 8 seconds and sends 4 more. The receive that runs during the wait comes back empty after 5 seconds; with `--empty-receives 2` the collector polls again and gets the second 4. The same setup with the default of 1 stopped there and ingested 4.
+
+```text
+$ dlqautopsy inspect --name late-producer --queue-url http://127.0.0.1:4566/123456789012/dlqautopsy-test-dlq --db late.db --purge --empty-receives 2
+Starting Collector for http://127.0.0.1:4566/123456789012/dlqautopsy-test-dlq...
+Using database late.db
+Polling messages from http://127.0.0.1:4566/123456789012/dlqautopsy-test-dlq...
+No messages in 2 consecutive receives. Stopping ingestion.
+Purging 8 ingested messages from DLQ...
+Purged 8/8 messages.
+Ingestion complete. Total ingested: 8
 ```
 
 ## Testing Environment
