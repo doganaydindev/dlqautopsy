@@ -311,8 +311,11 @@ func TestWriteTextIndentsMultiLineErrors(t *testing.T) {
 
 func TestSignatureCountWording(t *testing.T) {
 	s := buildDummySummary()
+	second := s.Timelines[0]
+	second.FailureClass = "Second"
+	second.UniqueSignatures = 3
 	s.Timelines[0].UniqueSignatures = 1
-	s.Timelines[1].UniqueSignatures = 3
+	s.Timelines = append(s.Timelines, second)
 	for name, out := range map[string]string{
 		"text":     captureStdout(func() { WriteText(s) }),
 		"markdown": captureStdout(func() { WriteMarkdown(s) }),
