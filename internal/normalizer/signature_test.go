@@ -58,11 +58,33 @@ func TestSignatureStability(t *testing.T) {
 			wantSame: false,
 		},
 		{
-			// Plain numbers are not normalized: two deadlocks with different
-			// process ids get different signatures (same class, though).
-			name:     "plain numeric ids are kept",
-			a:        "deadlock detected: process 12847",
-			b:        "deadlock detected: process 12849",
+			name:     "long numeric ids collapse",
+			a:        "deadlock detected: process 12847 waits for transaction 98712",
+			b:        "deadlock detected: process 3301977 waits for transaction 10044",
+			wantSame: true,
+		},
+		{
+			name:     "byte sizes and offsets collapse",
+			a:        "cannot allocate 268435456-byte block at offset 18827491",
+			b:        "cannot allocate 134217728-byte block at offset 90210",
+			wantSame: true,
+		},
+		{
+			name:     "HTTP status codes are kept",
+			a:        "HTTP 503 Service Unavailable",
+			b:        "HTTP 502 Service Unavailable",
+			wantSame: false,
+		},
+		{
+			name:     "MySQL error codes are kept",
+			a:        "Error 1213: Deadlock found when trying to get lock",
+			b:        "Error 1205: Deadlock found when trying to get lock",
+			wantSame: false,
+		},
+		{
+			name:     "four-digit numbers are kept",
+			a:        "upstream returned 4011 bytes",
+			b:        "upstream returned 4012 bytes",
 			wantSame: false,
 		},
 	}
@@ -169,5 +191,26 @@ func TestExtractErrorAndShape_EdgeCases(t *testing.T) {
 				t.Errorf("shape = %q, want %q", gotShape, tt.wantShape)
 			}
 		})
+	}
+}
+
+func TestNormalizeNumbers(t *testing.T) {
+	n := &Normalizer{}
+	tests := []struct{ in, want string }{
+		{"HTTP 503 Service Unavailable", "HTTP 503 Service Unavailable"},
+		{"Error 1213: Deadlock found", "Error 1213: Deadlock found"},
+		{"HTTP 401 Unauthorized", "HTTP 401 Unauthorized"},
+		{"process 12847 waits", "process [NUM] waits"},
+		{"invoice 14030 is already closed", "invoice [NUM] is already closed"},
+		{"epoch 1730000000000 rejected", "epoch [NUM] rejected"},
+		{"ord_1234567 failed", "ord_[NUM] failed"},
+		// file:line references keep their own placeholder
+		{"/app/big.go:123456 +0x1", "/app/big.go:[LINE] +[ADDR]"},
+	}
+	for _, tt := range tests {
+		got, _ := n.normalize(tt.in)
+		if got != tt.want {
+			t.Errorf("normalize(%q) = %q, want %q", tt.in, got, tt.want)
+		}
 	}
 }

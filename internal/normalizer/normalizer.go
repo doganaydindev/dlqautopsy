@@ -22,7 +22,17 @@ var (
 	timestampRegex  = regexp.MustCompile(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:?\d{2})?`)
 	ipRegex         = regexp.MustCompile(`\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}(:\d+)?`)
 	lineNumberRegex = regexp.MustCompile(`\.go:\d+`)
+	// Runs of five or more digits are treated as volatile values (process
+	// ids, row ids, offsets, byte sizes, Unix timestamps). Shorter numbers are
+	// kept on purpose: HTTP status codes (503), MySQL error codes (1213) and
+	// most ports carry meaning, and the classifier's status-code keywords are
+	// three digits long. See docs/failure-model.md.
+	longNumberRegex = regexp.MustCompile(`\d{5,}`)
 )
+
+// MinVolatileDigits is the length from which a run of digits is replaced by
+// [NUM] in the error signature.
+const MinVolatileDigits = 5
 
 // Common field names that typically contain error information.
 // Checked in priority order -- first match wins.
@@ -145,6 +155,12 @@ func computePayloadShape(obj map[string]any, prefix string) string {
 	return strings.Join(keys, ",")
 }
 
+// NormalizeError returns the normalized error text and its signature. It is
+// the same transformation the pipeline applies before classification.
+func NormalizeError(errorText string) (normalized string, signature string) {
+	return (&Normalizer{}).normalize(errorText)
+}
+
 // normalize processes the extracted error text into a stable signature.
 // This operates on the error string only (not the full payload), so the
 // error message keywords remain intact for classification.
@@ -165,6 +181,10 @@ func (n *Normalizer) normalize(errorText string) (normalized string, signature s
 
 	// Normalize Go file:line references (goroutine.go:123 -> goroutine.go:[LINE])
 	normalized = lineNumberRegex.ReplaceAllString(normalized, ".go:[LINE]")
+
+	// Collapse long numbers last, so the patterns above (timestamps, IPs,
+	// line numbers) see the original digits.
+	normalized = longNumberRegex.ReplaceAllString(normalized, "[NUM]")
 
 	normalized = strings.TrimSpace(normalized)
 

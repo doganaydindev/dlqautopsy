@@ -48,11 +48,14 @@ The first non-empty match is used as the error text. If the body is not JSON, or
 
 The extracted error text is sanitized:
 
-- Removes memory addresses (`0x[0-9a-f]+`)
+- Replaces memory addresses (`0x[0-9a-f]+`) with `[ADDR]`
 - Replaces UUIDs with `[UUID]`
 - Replaces timestamps with `[TIMESTAMP]`
 - Replaces IP addresses with `[IP]`
 - Normalizes Go file:line references (e.g., `handler.go:123` → `handler.go:[LINE]`)
+- Replaces every run of 5 or more digits with `[NUM]` (process ids, row ids, offsets, byte sizes, Unix timestamps). This step runs last, after the timestamp, IP and line-number patterns.
+
+The 5-digit threshold is deliberate. Numbers with up to 4 digits are kept because they often carry meaning: HTTP status codes (`503`), MySQL error codes (`1213`, `1205`) and most port numbers. The classifier's status-code keywords are 3 digits long, so they are never replaced, and a test (`TestNumericKeywordsSurviveNumberNormalization`) fails if a numeric keyword with 5 or more digits is ever added. The trade-off: 4-digit ids still split signatures, and 5-digit ports (for example `:15672`) are collapsed.
 
 The resulting string is SHA-256 hashed to produce the `ErrorSignature`. Messages with identical ErrorSignatures belong to the same Failure Class.
 
