@@ -10,23 +10,26 @@ import (
 
 // Timeline represents the analytical aggregation of a failure class.
 type Timeline struct {
-	FailureClass      string    `json:"failure_class"`
-	Severity          string    `json:"severity"`
-	RetryVerdict      string    `json:"retry_verdict"`
-	Count             int       `json:"count"`
-	Percentage        float64   `json:"percentage"` // percentage of total messages
-	UniqueSignatures  int       `json:"unique_signatures"`
-	FirstOccurrence   time.Time `json:"first_occurrence"`
-	LastOccurrence    time.Time `json:"last_occurrence"`
-	Duration          string    `json:"duration"`
-	RetryPattern      string    `json:"retry_pattern"`
-	AvgReceiveCount   float64   `json:"avg_receive_count"`
-	MaxReceiveCount   int       `json:"max_receive_count"`
-	PeakHourlySpike   int       `json:"peak_hourly_spike"`
-	RecommendedAction string    `json:"recommended_action"`
-	SamplePayload     string    `json:"sample_payload"`
-	SampleError       string    `json:"sample_error"`
-	PayloadShapes     []string  `json:"payload_shapes,omitempty"`
+	FailureClass     string    `json:"failure_class"`
+	Severity         string    `json:"severity"`
+	RetryVerdict     string    `json:"retry_verdict"`
+	Count            int       `json:"count"`
+	Percentage       float64   `json:"percentage"` // percentage of total messages
+	UniqueSignatures int       `json:"unique_signatures"`
+	FirstOccurrence  time.Time `json:"first_occurrence"`
+	LastOccurrence   time.Time `json:"last_occurrence"`
+	Duration         string    `json:"duration"`
+	RetryPattern     string    `json:"retry_pattern"`
+	AvgReceiveCount  float64   `json:"avg_receive_count"`
+	MaxReceiveCount  int       `json:"max_receive_count"`
+	// BusiestHourCount is the number of messages in the group whose
+	// SentTimestamp falls in the busiest UTC clock hour (e.g. 10:00-10:59).
+	// It was called peak_hourly_spike / "Peak Rate" before v0.1.1.
+	BusiestHourCount  int      `json:"busiest_hour_count"`
+	RecommendedAction string   `json:"recommended_action"`
+	SamplePayload     string   `json:"sample_payload"`
+	SampleError       string   `json:"sample_error"`
+	PayloadShapes     []string `json:"payload_shapes,omitempty"`
 	// BurstAnalysis states how close together the group's messages are, in
 	// plain numbers. The window runs from the earliest SQS SentTimestamp to
 	// the latest ingestion time, so it does not say why they failed.
@@ -179,7 +182,7 @@ func (a *Analyzer) buildTimelines(ctx context.Context) ([]Timeline, error) {
 			GROUP BY strftime('%Y-%m-%d %H', r2.first_seen)
 			ORDER BY COUNT(*) DESC 
 			LIMIT 1
-		), 0) as peak_hourly_spike,
+		), 0) as busiest_hour_count,
 		SUM(CASE WHEN r.receive_count <= 1 THEN 1 ELSE 0 END) as instant_death_count,
 		SUM(CASE WHEN r.receive_count > 1 THEN 1 ELSE 0 END) as exhaustion_count
 	FROM failure_records f
@@ -203,7 +206,7 @@ func (a *Analyzer) buildTimelines(ctx context.Context) ([]Timeline, error) {
 		var maxReceiveCount int
 		var firstOccAny, lastOccAny any
 		var samplePayload, sampleError string
-		var peakHourlySpike int
+		var busiestHourCount int
 		var instantDeathCount, exhaustionCount int
 		var uniqueSignatures int
 
@@ -220,7 +223,7 @@ func (a *Analyzer) buildTimelines(ctx context.Context) ([]Timeline, error) {
 			&maxReceiveCount,
 			&samplePayload,
 			&sampleError,
-			&peakHourlySpike,
+			&busiestHourCount,
 			&instantDeathCount,
 			&exhaustionCount,
 		)
@@ -235,7 +238,7 @@ func (a *Analyzer) buildTimelines(ctx context.Context) ([]Timeline, error) {
 		t.MaxReceiveCount = maxReceiveCount
 		t.SamplePayload = samplePayload
 		t.SampleError = sampleError
-		t.PeakHourlySpike = peakHourlySpike
+		t.BusiestHourCount = busiestHourCount
 		t.RecommendedAction = classification
 
 		// Compute duration

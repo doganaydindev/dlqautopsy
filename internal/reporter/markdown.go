@@ -127,8 +127,8 @@ func writeTimelineDetailMarkdown(w io.Writer, index int, t analyzer.Timeline) {
 	)
 	fmt.Fprintf(w, "| Retry Pattern | %s (avg %.1f receives, max %d) |\n", t.RetryPattern, t.AvgReceiveCount, t.MaxReceiveCount)
 
-	if t.PeakHourlySpike > 0 {
-		fmt.Fprintf(w, "| Peak Rate | ⚠️ %d messages/hour |\n", t.PeakHourlySpike)
+	if showBusiestHour(t) {
+		fmt.Fprintf(w, "| Busiest Hour | %s (%s) |\n", analyzer.Pluralize(t.BusiestHourCount, "message", "messages"), busiestHourNote)
 	}
 	if t.BurstAnalysis != "" {
 		fmt.Fprintf(w, "| Spread | %s |\n", t.BurstAnalysis)

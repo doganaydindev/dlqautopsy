@@ -79,6 +79,10 @@ Note what the window measures: the start is the earliest SQS `SentTimestamp` in 
 
 The Spread is shown in the text, markdown and JSON reports for groups with at least 2 messages.
 
+## Busiest Hour
+
+`busiest_hour_count` in JSON is the number of messages in a group whose SQS `SentTimestamp` falls in the busiest UTC clock hour (for example 10:00 to 10:59). It is a count, not a rate. Text and markdown reports show it as "Busiest Hour" only when the group's messages were sent across more than one clock hour; otherwise it would just repeat the group size. Before v0.1.1 this field was called `peak_hourly_spike` and shown as "Peak Rate: N messages/hour".
+
 ## Severity Levels
 
 Each failure class carries a severity that indicates operational urgency:

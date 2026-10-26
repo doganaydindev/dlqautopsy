@@ -2,6 +2,7 @@ package analyzer
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -184,7 +185,8 @@ func TestAnalyzer_Run(t *testing.T) {
 	runName := "test-run"
 	a := NewAnalyzer(db, runName)
 
-	now := time.Now().Round(time.Second)
+	// Fixed time so the two ClassA messages never straddle an hour boundary.
+	now := time.Date(2026, 2, 24, 10, 0, 0, 0, time.UTC)
 
 	// Insert raw events
 	re1 := model.RawEvent{ID: "msg-1", Body: `{"error":"e1"}`, ReceiveCount: 1, FirstSeen: now, LastSeen: now}
@@ -260,10 +262,48 @@ func TestAnalyzer_Run(t *testing.T) {
 	if t1.FailureClass != "ClassA" {
 		t.Errorf("expected ClassA timeline first, got %s", t1.FailureClass)
 	}
-	if t1.PeakHourlySpike != 2 {
-		t.Errorf("expected peak hourly spike 2, got %d", t1.PeakHourlySpike)
+	if t1.BusiestHourCount != 2 {
+		t.Errorf("expected busiest hour count 2, got %d", t1.BusiestHourCount)
 	}
 	if len(t1.PayloadShapes) != 1 || t1.PayloadShapes[0] != "error" {
 		t.Errorf("expected 'error' payload shape, got %v", t1.PayloadShapes)
+	}
+}
+
+// busiest_hour_count buckets SentTimestamp (first_seen) by UTC clock hour.
+func TestBusiestHourCount(t *testing.T) {
+	db, err := storage.NewDB(":memory:")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+
+	ist := time.FixedZone("UTC+3", 3*3600)
+	sent := []time.Time{
+		time.Date(2026, 2, 24, 10, 5, 0, 0, time.UTC),
+		time.Date(2026, 2, 24, 10, 50, 0, 0, time.UTC),
+		time.Date(2026, 2, 24, 13, 20, 0, 0, ist), // 10:20 UTC
+		time.Date(2026, 2, 24, 11, 10, 0, 0, time.UTC),
+	}
+	ingested := time.Date(2026, 2, 24, 12, 0, 0, 0, time.UTC)
+	for i, ts := range sent {
+		id := fmt.Sprintf("m-%d", i)
+		if err := db.InsertRawEvent("r", model.RawEvent{ID: id, Body: `{"error":"x"}`, FirstSeen: ts, LastSeen: ingested, ReceiveCount: 1}); err != nil {
+			t.Fatal(err)
+		}
+		if err := db.InsertFailureRecord("r", model.FailureRecord{RawEventID: id, ErrorSignature: "s", NormalizedError: "x",
+			FailureClass: "C", Classification: "c", Severity: "warning", RetryVerdict: "safe_to_retry"}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s, err := NewAnalyzer(db, "r").Run(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := s.Timelines[0].BusiestHourCount; got != 3 {
+		t.Errorf("busiest hour count = %d, want 3 (10:05, 10:20 and 10:50 UTC)", got)
+	}
+	if got := s.Timelines[0].Count; got != 4 {
+		t.Errorf("count = %d, want 4", got)
 	}
 }

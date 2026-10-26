@@ -73,7 +73,7 @@ func buildDummySummary() *analyzer.ReportSummary {
 				LastOccurrence:    now,
 				Duration:          "2h",
 				RetryPattern:      "Exhaustion",
-				PeakHourlySpike:   10,
+				BusiestHourCount:  10,
 				RecommendedAction: "Retry it later",
 				SampleError:       "long error text to test truncation",
 				PayloadShapes:     []string{"shape1", "shape2", "shape3", "shape4"},

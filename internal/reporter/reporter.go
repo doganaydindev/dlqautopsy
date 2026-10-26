@@ -190,9 +190,10 @@ func writeTimelineDetail(w io.Writer, index int, t analyzer.Timeline) {
 	fmt.Fprintf(w, "%s ", t.RetryPattern)
 	muted.Fprintf(w, "(avg %.1f receives, max %d)\n", t.AvgReceiveCount, t.MaxReceiveCount)
 
-	if t.PeakHourlySpike > 0 {
-		labelStyle.Fprintf(w, "      Peak Rate:      ")
-		warn.Fprintf(w, "%d messages/hour\n", t.PeakHourlySpike)
+	if showBusiestHour(t) {
+		labelStyle.Fprintf(w, "      Busiest Hour:   ")
+		fmt.Fprintf(w, "%s ", analyzer.Pluralize(t.BusiestHourCount, "message", "messages"))
+		muted.Fprintf(w, "(%s)\n", busiestHourNote)
 	}
 
 	if t.BurstAnalysis != "" {
