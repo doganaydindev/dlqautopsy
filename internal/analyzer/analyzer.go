@@ -349,12 +349,22 @@ func (a *Analyzer) buildExecutiveSummary(s *ReportSummary) string {
 		))
 	}
 
-	// Biggest class
+	// Biggest class, summed over all of its rows (a class can have several
+	// causes). Ties go to the class name that sorts first.
 	if len(s.Timelines) > 0 {
-		top := s.Timelines[0]
+		totals := map[string]int{}
+		for _, t := range s.Timelines {
+			totals[t.FailureClass] += t.Count
+		}
+		topName, topCount := "", -1
+		for name, n := range totals {
+			if n > topCount || (n == topCount && name < topName) {
+				topName, topCount = name, n
+			}
+		}
 		parts = append(parts, fmt.Sprintf(
 			"Largest class: \"%s\" with %d messages (%.0f%%).",
-			top.FailureClass, top.Count, top.Percentage,
+			topName, topCount, float64(topCount)/float64(s.TotalMessages)*100,
 		))
 	}
 

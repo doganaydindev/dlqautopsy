@@ -141,3 +141,21 @@ func TestTimelineOrderBreaksTiesByName(t *testing.T) {
 		t.Errorf("GetClassSummaries order = %s, want %s", strings.Join(got, ","), want)
 	}
 }
+
+// "Largest class" must add up all rows of a class. It used to report the
+// single biggest row: 35 of the 70 Downstream Dependency messages in the
+// seeded demo.
+func TestLargestClassSumsAllCauses(t *testing.T) {
+	a := &Analyzer{}
+	got := a.buildExecutiveSummary(&ReportSummary{
+		TotalMessages: 100, TotalClasses: 2, TotalGroups: 3, WindowDuration: "1m",
+		Timelines: []Timeline{
+			{FailureClass: "Auth Failure", Count: 40},
+			{FailureClass: "Downstream Dependency", Count: 35},
+			{FailureClass: "Downstream Dependency", Count: 25},
+		},
+	})
+	if !strings.Contains(got, `Largest class: "Downstream Dependency" with 60 messages (60%).`) {
+		t.Errorf("unexpected largest class: %s", got)
+	}
+}
