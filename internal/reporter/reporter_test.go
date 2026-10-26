@@ -282,3 +282,29 @@ func TestDashboardClassWording(t *testing.T) {
 		t.Errorf("markdown dashboard wording wrong:\n%s", md)
 	}
 }
+
+func TestIndentContinuation(t *testing.T) {
+	if got := indentContinuation("one line", 4); got != "one line" {
+		t.Errorf("single line changed: %q", got)
+	}
+	got := indentContinuation("panic: boom\n\tgoroutine 1 [running]:\nmain.main()\n", 4)
+	want := "panic: boom\n    \tgoroutine 1 [running]:\n    main.main()"
+	if got != want {
+		t.Errorf("got %q, want %q", got, want)
+	}
+}
+
+// Multi-line sample errors must not print lines starting at column 0.
+func TestWriteTextIndentsMultiLineErrors(t *testing.T) {
+	s := buildDummySummary()
+	s.Timelines[0].SampleError = "runtime error: nil pointer dereference\n\tgoroutine 42 [running]:\nmain.(*H).Send([ADDR])"
+	out := captureStdout(func() { WriteText(s) })
+	for _, line := range strings.Split(out, "\n") {
+		if strings.HasPrefix(line, "main.") || strings.HasPrefix(line, "\tgoroutine") {
+			t.Errorf("continuation line not indented: %q", line)
+		}
+	}
+	if !strings.Contains(out, "\n                      main.(*H).Send([ADDR])") {
+		t.Errorf("continuation line not aligned under the sample error:\n%s", out)
+	}
+}

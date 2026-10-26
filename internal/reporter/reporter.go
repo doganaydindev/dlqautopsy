@@ -107,6 +107,17 @@ func classWord(n int) string {
 	return "classes"
 }
 
+// indentContinuation indents every line after the first by width spaces, so
+// multi-line errors (stack traces) stay inside their column instead of
+// starting at column 0 and breaking the report layout.
+func indentContinuation(s string, width int) string {
+	s = strings.TrimRight(s, "\n")
+	if !strings.Contains(s, "\n") {
+		return s
+	}
+	return strings.ReplaceAll(s, "\n", "\n"+strings.Repeat(" ", width))
+}
+
 func printStat(w io.Writer, label, value string, style *color.Color) {
 	fmt.Fprintf(w, "  %-18s ", label+":")
 	style.Fprintf(w, "%s\n", value)
@@ -197,8 +208,9 @@ func writeTimelineDetail(w io.Writer, index int, t analyzer.Timeline) {
 	if len(sample) > 200 {
 		sample = sample[:197] + "..."
 	}
-	labelStyle.Fprintf(w, "      Sample Error:   ")
-	muted.Fprintf(w, "%s\n", sample)
+	const sampleLabel = "      Sample Error:   "
+	labelStyle.Fprintf(w, sampleLabel)
+	muted.Fprintf(w, "%s\n", indentContinuation(sample, len(sampleLabel)))
 
 	// Payload shapes
 	if len(t.PayloadShapes) > 0 {
@@ -262,8 +274,9 @@ func WriteDetailText(records []storage.DetailRecord, label string) error {
 		if len(normErr) > 200 {
 			normErr = normErr[:197] + "..."
 		}
-		labelStyle.Fprintf(w, "      Error:       ")
-		warn.Fprintln(w, normErr)
+		const errLabel = "      Error:       "
+		labelStyle.Fprintf(w, errLabel)
+		warn.Fprintln(w, indentContinuation(normErr, len(errLabel)))
 
 		body := r.Body
 		if len(body) > 300 {
