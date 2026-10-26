@@ -60,8 +60,8 @@ func WriteText(summary *analyzer.ReportSummary) error {
 	// Stats dashboard
 	subheader.Fprintln(w, "  ── Dashboard ─────────────────────────────────────────")
 	printStat(w, "Total Messages", fmt.Sprintf("%d", summary.TotalMessages), number)
-	printStat(w, "Failure Classes", fmt.Sprintf("%d", summary.TotalClasses), number)
-	printStat(w, "Critical", fmt.Sprintf("%d classes", summary.CriticalCount), danger)
+	printStat(w, "Failure Classes", classCountLabel(summary), number)
+	printStat(w, "Critical", analyzer.Pluralize(summary.CriticalCount, "class", "classes"), danger)
 
 	if summary.TotalMessages > 0 {
 		retryPct := float64(summary.SafeToRetryMsgs) / float64(summary.TotalMessages) * 100
@@ -90,6 +90,21 @@ func WriteText(summary *analyzer.ReportSummary) error {
 	muted.Fprintf(w, "  Use `dlqautopsy detail --name %s --class \"<name>\"` to drill in.\n", summary.RunName)
 	fmt.Fprintln(w)
 	return nil
+}
+
+// classCountLabel is "7" or, when classes are split by cause, "7 (15 groups)".
+func classCountLabel(s *analyzer.ReportSummary) string {
+	if s.TotalGroups > s.TotalClasses {
+		return fmt.Sprintf("%d (%d groups)", s.TotalClasses, s.TotalGroups)
+	}
+	return fmt.Sprintf("%d", s.TotalClasses)
+}
+
+func classWord(n int) string {
+	if n == 1 {
+		return "class"
+	}
+	return "classes"
 }
 
 func printStat(w io.Writer, label, value string, style *color.Color) {

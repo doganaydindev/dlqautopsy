@@ -397,7 +397,7 @@ func (db *DB) GetClassSummaries(runName string) ([]DiffClassSummary, error) {
 	FROM failure_records
 	WHERE run_name = ? AND failure_class != ''
 	GROUP BY failure_class, classification, severity, retry_verdict
-	ORDER BY cnt DESC
+	ORDER BY cnt DESC, failure_class ASC, classification ASC
 	`
 	rows, err := db.conn.Query(query, runName)
 	if err != nil {

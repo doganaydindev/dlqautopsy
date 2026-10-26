@@ -39,8 +39,8 @@ func writeMarkdown(w io.Writer, summary *analyzer.ReportSummary) error {
 	fmt.Fprintln(w, "| Metric | Value |")
 	fmt.Fprintln(w, "|--------|-------|")
 	fmt.Fprintf(w, "| Total Messages | **%d** |\n", summary.TotalMessages)
-	fmt.Fprintf(w, "| Failure Classes | **%d** |\n", summary.TotalClasses)
-	fmt.Fprintf(w, "| Critical | **%d** classes |\n", summary.CriticalCount)
+	fmt.Fprintf(w, "| Failure Classes | **%s** |\n", classCountLabel(summary))
+	fmt.Fprintf(w, "| Critical | **%d** %s |\n", summary.CriticalCount, classWord(summary.CriticalCount))
 
 	if summary.TotalMessages > 0 {
 		retryPct := float64(summary.SafeToRetryMsgs) / float64(summary.TotalMessages) * 100

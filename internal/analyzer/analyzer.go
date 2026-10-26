@@ -41,7 +41,8 @@ type TriageGroup struct {
 type ReportSummary struct {
 	RunName          string        `json:"run_name"`
 	TotalMessages    int           `json:"total_messages"`
-	TotalClasses     int           `json:"total_classes"`
+	TotalClasses     int           `json:"total_classes"` // distinct failure classes
+	TotalGroups      int           `json:"total_groups"`  // rows in "classes": one per (failure class, cause)
 	CriticalCount    int           `json:"critical_count"`
 	SafeToRetryCount int           `json:"safe_to_retry_count"`
 	SafeToRetryMsgs  int           `json:"safe_to_retry_messages"`
@@ -81,24 +82,42 @@ func (a *Analyzer) Run(ctx context.Context) (*ReportSummary, error) {
 	for i := range timelines {
 		summary.TotalMessages += timelines[i].Count
 	}
+	// One failure class (e.g. "Downstream Dependency") can appear as several
+	// rows, one per cause. Class counts are over distinct class names; the
+	// number of rows is reported separately as TotalGroups.
+	seen := map[string]bool{}
+	critical := map[string]bool{}
+	safe := map[string]bool{}
+	doNot := map[string]bool{}
 	for i := range timelines {
-		summary.TotalClasses++
 		t := &timelines[i]
+		summary.TotalGroups++
+		if !seen[t.FailureClass] {
+			seen[t.FailureClass] = true
+			summary.TotalClasses++
+		}
 
 		// Percentage of total
 		if summary.TotalMessages > 0 {
 			t.Percentage = float64(t.Count) / float64(summary.TotalMessages) * 100
 		}
 
-		if t.Severity == "critical" {
+		if t.Severity == "critical" && !critical[t.FailureClass] {
+			critical[t.FailureClass] = true
 			summary.CriticalCount++
 		}
 		switch t.RetryVerdict {
 		case "safe_to_retry", "retry_with_backoff":
-			summary.SafeToRetryCount++
+			if !safe[t.FailureClass] {
+				safe[t.FailureClass] = true
+				summary.SafeToRetryCount++
+			}
 			summary.SafeToRetryMsgs += t.Count
 		case "do_not_retry":
-			summary.DoNotRetryCount++
+			if !doNot[t.FailureClass] {
+				doNot[t.FailureClass] = true
+				summary.DoNotRetryCount++
+			}
 			summary.DoNotRetryMsgs += t.Count
 		}
 
@@ -164,7 +183,7 @@ func (a *Analyzer) buildTimelines(ctx context.Context) ([]Timeline, error) {
 	JOIN raw_events r ON f.run_name = r.run_name AND f.raw_event_id = r.id
 	WHERE f.run_name = ?
 	GROUP BY f.failure_class, f.classification, f.severity, f.retry_verdict
-	ORDER BY count DESC
+	ORDER BY count DESC, f.failure_class ASC, f.classification ASC
 	`
 	rows, err := a.db.GetDB().QueryContext(ctx, query, a.runName, a.runName)
 	if err != nil {
@@ -296,10 +315,14 @@ func (a *Analyzer) buildExecutiveSummary(s *ReportSummary) string {
 
 	var parts []string
 
-	parts = append(parts, fmt.Sprintf(
-		"%d messages across %d failure classes (window: %s).",
-		s.TotalMessages, s.TotalClasses, s.WindowDuration,
-	))
+	first := fmt.Sprintf("%s across %s", Pluralize(s.TotalMessages, "message", "messages"), Pluralize(s.TotalClasses, "failure class", "failure classes"))
+	if s.TotalGroups > s.TotalClasses {
+		first += fmt.Sprintf(", split into %d groups by cause", s.TotalGroups)
+	}
+	if s.WindowDuration != "" {
+		first += fmt.Sprintf(" (window: %s)", s.WindowDuration)
+	}
+	parts = append(parts, first+".")
 
 	if s.SafeToRetryMsgs > 0 {
 		pct := float64(s.SafeToRetryMsgs) / float64(s.TotalMessages) * 100
@@ -336,6 +359,14 @@ func (a *Analyzer) buildExecutiveSummary(s *ReportSummary) string {
 	}
 
 	return joinSentences(parts)
+}
+
+// Pluralize returns "1 message" or "3 messages".
+func Pluralize(n int, one, many string) string {
+	if n == 1 {
+		return fmt.Sprintf("%d %s", n, one)
+	}
+	return fmt.Sprintf("%d %s", n, many)
 }
 
 func joinSentences(parts []string) string {

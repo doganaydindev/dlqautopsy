@@ -266,3 +266,19 @@ func TestWriteRunsText(t *testing.T) {
 		t.Errorf("missing empty msg")
 	}
 }
+
+func TestDashboardClassWording(t *testing.T) {
+	s := buildDummySummary()
+	s.TotalClasses, s.TotalGroups, s.CriticalCount = 7, 15, 1
+	out := captureStdout(func() { WriteText(s) })
+	if !strings.Contains(out, "7 (15 groups)") {
+		t.Errorf("text dashboard should show classes and groups:\n%s", out)
+	}
+	if !strings.Contains(out, "1 class\n") || strings.Contains(out, "1 classes") {
+		t.Errorf("text dashboard should say \"1 class\":\n%s", out)
+	}
+	md := captureStdout(func() { WriteMarkdown(s) })
+	if !strings.Contains(md, "| Failure Classes | **7 (15 groups)** |") || !strings.Contains(md, "| Critical | **1** class |") {
+		t.Errorf("markdown dashboard wording wrong:\n%s", md)
+	}
+}
