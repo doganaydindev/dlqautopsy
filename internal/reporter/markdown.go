@@ -267,8 +267,7 @@ func WriteDiffMarkdown(baseRun, compareRun string, baseClasses, compareClasses [
 
 func writeDiffMarkdown(w io.Writer, baseRun, compareRun string, baseClasses, compareClasses []storage.DiffClassSummary) error {
 
-	baseMap := aggregateByClass(baseClasses)
-	compareMap := aggregateByClass(compareClasses)
+	d := computeDiff(baseClasses, compareClasses)
 
 	fmt.Fprintln(w, "# Run Comparison")
 	fmt.Fprintln(w)
@@ -276,93 +275,49 @@ func writeDiffMarkdown(w io.Writer, baseRun, compareRun string, baseClasses, com
 	fmt.Fprintf(w, "**Compare:** `%s`\n", compareRun)
 	fmt.Fprintln(w)
 
-	// New classes
-	var newClasses []storage.DiffClassSummary
-	for name, c := range compareMap {
-		if _, found := baseMap[name]; !found {
-			newClasses = append(newClasses, c)
-		}
-	}
-	if len(newClasses) > 0 {
+	if len(d.New) > 0 {
 		fmt.Fprintf(w, "## 🆕 New Failure Classes (appeared in `%s`)\n\n", compareRun)
 		fmt.Fprintln(w, "| Failure Class | Count | Severity |")
 		fmt.Fprintln(w, "|---------------|------:|----------|")
-		for _, c := range newClasses {
+		for _, c := range d.New {
 			fmt.Fprintf(w, "| **%s** | %d | %s |\n", c.FailureClass, c.Count, severityBadge(c.Severity))
 		}
 		fmt.Fprintln(w)
 	}
 
-	// Resolved classes
-	var resolvedClasses []storage.DiffClassSummary
-	for name, c := range baseMap {
-		if _, found := compareMap[name]; !found {
-			resolvedClasses = append(resolvedClasses, c)
-		}
-	}
-	if len(resolvedClasses) > 0 {
+	if len(d.Resolved) > 0 {
 		fmt.Fprintf(w, "## ✅ Resolved (gone from `%s`)\n\n", compareRun)
 		fmt.Fprintln(w, "| Failure Class | Was |")
 		fmt.Fprintln(w, "|---------------|----:|")
-		for _, c := range resolvedClasses {
+		for _, c := range d.Resolved {
 			fmt.Fprintf(w, "| ~~%s~~ | %d msgs |\n", c.FailureClass, c.Count)
 		}
 		fmt.Fprintln(w)
 	}
 
-	// Changed classes
-	type delta struct {
-		class     string
-		severity  string
-		baseCount int
-		newCount  int
-		change    int
-		changePct float64
-	}
-	var worsening, improving []delta
-	for name, bc := range baseMap {
-		if cc, found := compareMap[name]; found {
-			d := delta{
-				class:     bc.FailureClass,
-				severity:  cc.Severity,
-				baseCount: bc.Count,
-				newCount:  cc.Count,
-				change:    cc.Count - bc.Count,
-			}
-			if bc.Count > 0 {
-				d.changePct = float64(d.change) / float64(bc.Count) * 100
-			}
-			if d.change > 0 {
-				worsening = append(worsening, d)
-			} else if d.change < 0 {
-				improving = append(improving, d)
-			}
-		}
-	}
-
-	if len(worsening) > 0 {
+	if len(d.Worsening) > 0 {
 		fmt.Fprintln(w, "## 📈 Worsening")
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "| Failure Class | Before | After | Change |")
 		fmt.Fprintln(w, "|---------------|-------:|------:|-------:|")
-		for _, d := range worsening {
-			fmt.Fprintf(w, "| **%s** | %d | %d | **+%d** (+%.0f%%) |\n", d.class, d.baseCount, d.newCount, d.change, d.changePct)
+		for _, c := range d.Worsening {
+			fmt.Fprintf(w, "| **%s** | %d | %d | **+%d** (+%.0f%%) |\n", c.FailureClass, c.BaseCount, c.CompareCount, c.Change, c.ChangePct)
 		}
 		fmt.Fprintln(w)
 	}
 
-	if len(improving) > 0 {
+	if len(d.Improving) > 0 {
 		fmt.Fprintln(w, "## 📉 Improving")
 		fmt.Fprintln(w)
 		fmt.Fprintln(w, "| Failure Class | Before | After | Change |")
 		fmt.Fprintln(w, "|---------------|-------:|------:|-------:|")
-		for _, d := range improving {
-			fmt.Fprintf(w, "| **%s** | %d | %d | %d (%.0f%%) |\n", d.class, d.baseCount, d.newCount, d.change, d.changePct)
+		for _, c := range d.Improving {
+			fmt.Fprintf(w, "| **%s** | %d | %d | %d (%.0f%%) |\n", c.FailureClass, c.BaseCount, c.CompareCount, c.Change, c.ChangePct)
 		}
 		fmt.Fprintln(w)
 	}
 
-	if len(newClasses) == 0 && len(resolvedClasses) == 0 && len(worsening) == 0 && len(improving) == 0 {
+	if d.empty() {
 		fmt.Fprintln(w, "> ✅ No differences found between the two runs.")
 		fmt.Fprintln(w)
 	}

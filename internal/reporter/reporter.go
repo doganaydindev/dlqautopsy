@@ -305,8 +305,7 @@ func severityRank(s string) int {
 func WriteDiffText(baseRun, compareRun string, baseClasses, compareClasses []storage.DiffClassSummary) error {
 	w := os.Stdout
 
-	baseMap := aggregateByClass(baseClasses)
-	compareMap := aggregateByClass(compareClasses)
+	d := computeDiff(baseClasses, compareClasses)
 
 	fmt.Fprintln(w)
 	header.Fprintln(w, "  ╔══════════════════════════════════════════════════════╗")
@@ -318,17 +317,10 @@ func WriteDiffText(baseRun, compareRun string, baseClasses, compareClasses []sto
 	bold.Fprintln(w, compareRun)
 	fmt.Fprintln(w)
 
-	// New classes
-	var newClasses []storage.DiffClassSummary
-	for name, c := range compareMap {
-		if _, found := baseMap[name]; !found {
-			newClasses = append(newClasses, c)
-		}
-	}
-	if len(newClasses) > 0 {
+	if len(d.New) > 0 {
 		danger.Fprintf(w, "  🆕 NEW FAILURE CLASSES (appeared in %s)\n", compareRun)
 		dim.Fprintln(w, "  ──────────────────────────────────────────")
-		for _, c := range newClasses {
+		for _, c := range d.New {
 			danger.Fprintf(w, "    + %-28s ", c.FailureClass)
 			number.Fprintf(w, "%5d ", c.Count)
 			muted.Fprintf(w, "msgs ")
@@ -337,76 +329,39 @@ func WriteDiffText(baseRun, compareRun string, baseClasses, compareClasses []sto
 		fmt.Fprintln(w)
 	}
 
-	// Resolved classes
-	var resolvedClasses []storage.DiffClassSummary
-	for name, c := range baseMap {
-		if _, found := compareMap[name]; !found {
-			resolvedClasses = append(resolvedClasses, c)
-		}
-	}
-	if len(resolvedClasses) > 0 {
+	if len(d.Resolved) > 0 {
 		success.Fprintf(w, "  ✅ RESOLVED (gone from %s)\n", compareRun)
 		dim.Fprintln(w, "  ──────────────────────────────────────────")
-		for _, c := range resolvedClasses {
+		for _, c := range d.Resolved {
 			success.Fprintf(w, "    ✓ %-28s ", c.FailureClass)
 			muted.Fprintf(w, "was %d msgs\n", c.Count)
 		}
 		fmt.Fprintln(w)
 	}
 
-	// Changed classes
-	type delta struct {
-		class     string
-		severity  string
-		baseCount int
-		newCount  int
-		change    int
-		changePct float64
-	}
-	var worsening, improving []delta
-	for name, bc := range baseMap {
-		if cc, found := compareMap[name]; found {
-			d := delta{
-				class:     bc.FailureClass,
-				severity:  cc.Severity,
-				baseCount: bc.Count,
-				newCount:  cc.Count,
-				change:    cc.Count - bc.Count,
-			}
-			if bc.Count > 0 {
-				d.changePct = float64(d.change) / float64(bc.Count) * 100
-			}
-			if d.change > 0 {
-				worsening = append(worsening, d)
-			} else if d.change < 0 {
-				improving = append(improving, d)
-			}
-		}
-	}
-
-	if len(worsening) > 0 {
+	if len(d.Worsening) > 0 {
 		danger.Fprintln(w, "  📈 WORSENING")
 		dim.Fprintln(w, "  ──────────────────────────────────────────")
-		for _, d := range worsening {
-			danger.Fprintf(w, "    ▲ %-28s ", d.class)
-			fmt.Fprintf(w, "%d → %d ", d.baseCount, d.newCount)
-			danger.Fprintf(w, "(+%d, +%.0f%%)\n", d.change, d.changePct)
+		for _, c := range d.Worsening {
+			danger.Fprintf(w, "    ▲ %-28s ", c.FailureClass)
+			fmt.Fprintf(w, "%d → %d ", c.BaseCount, c.CompareCount)
+			danger.Fprintf(w, "(+%d, +%.0f%%)\n", c.Change, c.ChangePct)
 		}
 		fmt.Fprintln(w)
 	}
 
-	if len(improving) > 0 {
+	if len(d.Improving) > 0 {
 		success.Fprintln(w, "  📉 IMPROVING")
 		dim.Fprintln(w, "  ──────────────────────────────────────────")
-		for _, d := range improving {
-			success.Fprintf(w, "    ▼ %-28s ", d.class)
-			fmt.Fprintf(w, "%d → %d ", d.baseCount, d.newCount)
-			success.Fprintf(w, "(%d, %.0f%%)\n", d.change, d.changePct)
+		for _, c := range d.Improving {
+			success.Fprintf(w, "    ▼ %-28s ", c.FailureClass)
+			fmt.Fprintf(w, "%d → %d ", c.BaseCount, c.CompareCount)
+			success.Fprintf(w, "(%d, %.0f%%)\n", c.Change, c.ChangePct)
 		}
 		fmt.Fprintln(w)
 	}
 
-	if len(newClasses) == 0 && len(resolvedClasses) == 0 && len(worsening) == 0 && len(improving) == 0 {
+	if d.empty() {
 		success.Fprintln(w, "  ✓ No differences found between the two runs.")
 		fmt.Fprintln(w)
 	}
@@ -416,15 +371,36 @@ func WriteDiffText(baseRun, compareRun string, baseClasses, compareClasses []sto
 
 // WriteDiffJSON outputs a diff comparison as JSON.
 func WriteDiffJSON(baseRun, compareRun string, baseClasses, compareClasses []storage.DiffClassSummary) error {
+	d := computeDiff(baseClasses, compareClasses)
 	type diffOutput struct {
 		BaseRun    string                     `json:"base_run"`
 		CompareRun string                     `json:"compare_run"`
+		New        []storage.DiffClassSummary `json:"new_classes"`
+		Resolved   []storage.DiffClassSummary `json:"resolved_classes"`
+		Worsening  []ClassDelta               `json:"worsening"`
+		Improving  []ClassDelta               `json:"improving"`
 		Base       []storage.DiffClassSummary `json:"base_classes"`
 		Compare    []storage.DiffClassSummary `json:"compare_classes"`
+	}
+	nonNil := func(s []storage.DiffClassSummary) []storage.DiffClassSummary {
+		if s == nil {
+			return []storage.DiffClassSummary{}
+		}
+		return s
+	}
+	nonNilDelta := func(s []ClassDelta) []ClassDelta {
+		if s == nil {
+			return []ClassDelta{}
+		}
+		return s
 	}
 	out := diffOutput{
 		BaseRun:    baseRun,
 		CompareRun: compareRun,
+		New:        nonNil(d.New),
+		Resolved:   nonNil(d.Resolved),
+		Worsening:  nonNilDelta(d.Worsening),
+		Improving:  nonNilDelta(d.Improving),
 		Base:       baseClasses,
 		Compare:    compareClasses,
 	}
