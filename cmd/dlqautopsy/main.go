@@ -24,6 +24,10 @@ var (
 	signature string
 	limit     int
 	compareTo string
+
+	// sqsClient, when set, replaces the AWS SQS client used by inspect.
+	// Only tests set it.
+	sqsClient collector.SQSApi
 )
 
 var rootCmd = &cobra.Command{
@@ -49,14 +53,12 @@ var inspectCmd = &cobra.Command{
 			Purge:  purge,
 			Region: awsRegion,
 		})
-
-		err = col.Run(cmd.Context())
-		if err != nil {
-			return err
+		if sqsClient != nil {
+			col.Client = sqsClient
 		}
 
-		fmt.Println("Ingestion complete.")
-		return nil
+		// The collector prints its own "Ingestion complete. Total ingested: N" line.
+		return col.Run(cmd.Context())
 	},
 }
 

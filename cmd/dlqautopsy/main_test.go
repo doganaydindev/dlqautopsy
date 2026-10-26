@@ -2,8 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"io"
 	"os"
+	"strings"
 	"testing"
+
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 )
 
 func executeCommand(args ...string) (string, error) {
@@ -96,4 +101,50 @@ func TestCmdErrors(t *testing.T) {
 	executeCommand("detail", "--name", "errs", "--db", "/invalid/root/db.db")
 	executeCommand("diff", "--name", "errs", "--compare", "run", "--db", "/invalid/root/db.db")
 	executeCommand("runs", "--db", "/invalid/root/db.db")
+}
+
+// emptySQS is a drained queue: every receive returns no messages.
+type emptySQS struct{}
+
+func (emptySQS) ReceiveMessage(context.Context, *sqs.ReceiveMessageInput, ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
+	return &sqs.ReceiveMessageOutput{}, nil
+}
+
+func (emptySQS) DeleteMessage(context.Context, *sqs.DeleteMessageInput, ...func(*sqs.Options)) (*sqs.DeleteMessageOutput, error) {
+	return &sqs.DeleteMessageOutput{}, nil
+}
+
+func captureStdout(t *testing.T, f func()) string {
+	t.Helper()
+	old := os.Stdout
+	r, w, err := os.Pipe()
+	if err != nil {
+		t.Fatal(err)
+	}
+	os.Stdout = w
+	f()
+	w.Close()
+	os.Stdout = old
+	var buf bytes.Buffer
+	io.Copy(&buf, r)
+	return buf.String()
+}
+
+// inspect used to print "Ingestion complete." twice: once from the collector
+// (with the total) and once from the command.
+func TestInspectPrintsIngestionCompleteOnce(t *testing.T) {
+	sqsClient = emptySQS{}
+	defer func() { sqsClient = nil }()
+
+	out := captureStdout(t, func() {
+		if _, err := executeCommand("inspect", "--name", "once", "--queue-url", "http://127.0.0.1:4566/000000000000/q", "--db", ":memory:"); err != nil {
+			t.Errorf("inspect: %v", err)
+		}
+	})
+	if n := strings.Count(out, "Ingestion complete"); n != 1 {
+		t.Errorf("\"Ingestion complete\" printed %d times, want 1. Output:\n%s", n, out)
+	}
+	if !strings.Contains(out, "Ingestion complete. Total ingested: 0") {
+		t.Errorf("missing total line. Output:\n%s", out)
+	}
 }
