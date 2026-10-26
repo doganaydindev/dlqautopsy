@@ -4,7 +4,7 @@ dlqautopsy is designed around a strictly unidirectional pipeline. It extracts da
 
 ## Component Boundaries
 
-1. **Collector**: Reaches out to the target DLQ (e.g., AWS SQS), pulls down messages, their attributes, and metadata (timestamps, receive counts), and writes them to local storage. Supports `--purge` to delete messages from the DLQ after successful ingestion, and `--region` to override the AWS region.
+1. **Collector**: Reaches out to the target DLQ (e.g., AWS SQS), pulls down messages, their attributes, and metadata (timestamps, receive counts), and writes them to local storage. Supports `--purge` to delete messages from the DLQ after successful ingestion, `--region` to override the AWS region, and `--empty-receives N` to stop only after N consecutive receives return no messages (default 1; each receive long-polls for up to 5 seconds).
 2. **Storage**: The unified persistence layer.
 3. **Normalizer**: Parses raw message bodies as JSON to intelligently extract error-specific fields (e.g., `error`, `errorMessage`, `cause`) rather than treating the entire payload as the error. Computes a payload shape fingerprint from the JSON key structure for shape-based grouping. Strips volatile data (memory addresses, UUIDs, timestamps, IPs) from the extracted error text and hashes the remainder to create a stable error signature.
 4. **Classifier**: Matches the normalized error text against an ordered list of keyword rules (first match wins) and assigns a failure class. It does not use payload shapes. Messages that match no rule get an `Unknown-<signature prefix>` class, so identical unknown errors still group together. Assigns severity levels (critical/warning/info) and retry verdicts (safe_to_retry/do_not_retry/retry_with_backoff/needs_investigation).
