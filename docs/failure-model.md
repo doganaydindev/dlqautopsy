@@ -13,11 +13,22 @@ dlqautopsy recognizes the following deterministic classes:
 | **Poison Message**        | critical       | do_not_retry        | Payload is structurally invalid. Deserialization, validation, or schema errors. Will never succeed regardless of retries. |
 | **Downstream Dependency** | warning        | safe_to_retry       | External service or database is unavailable. Timeouts, connection refused, 502/503/504 errors.                            |
 | **Auth Failure**          | critical       | needs_investigation | Authentication or authorization errors (401, 403, token expired). Requires credential or permission fix.                  |
-| **Configuration Error**   | critical       | do_not_retry        | DNS resolution failures, TLS/certificate errors. Infrastructure misconfiguration.                                         |
+| **Configuration Error**   | critical       | do_not_retry (DNS) / needs_investigation (TLS) | DNS resolution failures, TLS/certificate errors. Infrastructure misconfiguration.                       |
 | **Network Error**         | warning        | retry_with_backoff  | Connection dropped mid-flight (broken pipe, connection reset, EOF).                                                       |
 | **Resource Exhaustion**   | critical       | needs_investigation | OOM, disk full, file descriptor exhaustion on the consumer.                                                               |
-| **Transient Error**       | warning / info | retry_with_backoff  | Deadlocks, rate limiting, throttling. Temporary contention.                                                               |
+| **Transient Error**       | warning / info | retry_with_backoff  | Deadlocks and lock wait timeouts (warning), rate limiting and throttling (info).                                          |
 | **Unknown**               | warning        | needs_investigation | No matching rule. Appended with the first 8 chars of the error signature for grouping.                                    |
+
+## How Messages Are Matched to a Class
+
+The classifier is a fixed, ordered list of keyword rules in `internal/classifier/classifier.go`. For each message it lower-cases the normalized error text and walks the rules top to bottom; the first rule with a matching keyword wins. It does not look at the payload shape or at other messages.
+
+- Most keywords are plain substrings, so `throttl` matches "throttled" and "throttling".
+- All-digit keywords (`401`, `403`, `429`, `502`, `503`, `504`) only match as whole numbers. `14030` does not count as a 403.
+- Keywords of three characters or fewer (`oom`, `eof`, `dns`, `tls`) must start at a word boundary, so "room" or "thereof" do not match, while "OOMKilled" does.
+- Rule order matters: lock contention and HTTP 5xx rules come before the generic `timeout` rule, so "lock wait timeout" and "504 gateway timeout" are not classified as plain downstream timeouts.
+
+One failure class can have several rules, each with its own cause text, severity and retry verdict (for example, Configuration Error has a DNS rule and a TLS rule). Reports therefore show one row per (class, cause): the seeded test data produces 7 failure classes in 15 rows. The JSON report has both numbers: `total_classes` and `total_groups`.
 
 ## Error Signature Hashing
 
@@ -66,7 +77,9 @@ The Analyzer performs burst detection on each failure class based on the tempora
 | 15–60 minutes       | **Medium window**: Extended incident                                                  |
 | > 1 hour, high rate | **Sustained high rate**: Reports failures/hour metric                                 |
 
-Burst analysis is displayed in both text and JSON reports to help engineers correlate DLQ spikes with external events.
+Burst analysis is displayed in the text, markdown and JSON reports.
+
+Note what the window measures: the start is the earliest SQS `SentTimestamp` in the group, and the end is the latest `last_seen`, which is the time `dlqautopsy inspect` ingested the message (the collector sets it to the current time). If you ingest a DLQ hours after the failures, the window and the burst assessment include that delay.
 
 ## Severity Levels
 

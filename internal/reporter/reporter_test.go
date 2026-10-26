@@ -308,3 +308,20 @@ func TestWriteTextIndentsMultiLineErrors(t *testing.T) {
 		t.Errorf("continuation line not aligned under the sample error:\n%s", out)
 	}
 }
+
+func TestSignatureCountWording(t *testing.T) {
+	s := buildDummySummary()
+	s.Timelines[0].UniqueSignatures = 1
+	s.Timelines[1].UniqueSignatures = 3
+	for name, out := range map[string]string{
+		"text":     captureStdout(func() { WriteText(s) }),
+		"markdown": captureStdout(func() { WriteMarkdown(s) }),
+	} {
+		if strings.Contains(out, "1 unique error hashes") {
+			t.Errorf("%s: says \"1 unique error hashes\"", name)
+		}
+		if !strings.Contains(out, "1 unique error hash") || !strings.Contains(out, "3 unique error hashes") {
+			t.Errorf("%s: missing singular/plural signature counts:\n%s", name, out)
+		}
+	}
+}

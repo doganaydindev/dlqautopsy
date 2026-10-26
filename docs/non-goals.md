@@ -20,7 +20,7 @@ Monitoring tools excel at telling you when the dead letter rate spikes. dlqautop
 
 dlqautopsy is a forensic analysis tool, not an administrative dashboard.
 
-While v0.3 introduces replay hooks for automated action on known failure classes, dlqautopsy does not present a UI where developers can manually edit JSON payloads and click “Resubmit”. 
+dlqautopsy does not redrive, replay or resubmit messages. It reads them (and, with `--purge`, deletes the ones it ingested). Replay hooks are on the roadmap but not implemented. Either way, there will be no UI where developers edit JSON payloads and click “Resubmit”. For moving messages back to the source queue, use the SQS redrive feature.
 
 ## AI-Based Guessing
 

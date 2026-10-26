@@ -2,21 +2,19 @@
 
 dlqautopsy is built iteratively, focusing first on core functionality before expanding the integration surface.
 
-## v0.1 (Current MVP)
-- **Target Backend**: AWS SQS (DLQs)
-- **Storage**: Local SQLite
+## Implemented today
+- **Target Backend**: AWS SQS (DLQs), including any SQS-compatible endpoint set with `AWS_ENDPOINT_URL`
+- **Storage**: Local SQLite, with named runs
 - **Core Engine**: Deterministic normalizer, classifier, and analyzer
-- **Interface**: CLI with `inspect`, `classify`, and `report` commands
-- **Format**: Text tables and JSON output
+- **Interface**: CLI with `inspect`, `classify`, `report`, `detail`, `diff`, and `runs`
+- **Format**: Text, JSON, and Markdown output
+- **Reporting**: Diffing two runs to show new, resolved, worsening and improving failure classes
 
-## v0.2
+## Planned (not implemented yet)
 - **New Target Backend**: RabbitMQ dead-letter exchanges
 - **New Target Backend**: Kafka dead-letter topics
 - **Enhancement**: Better heuristics for identifying Poison Messages
-
-## v0.3
-- **Action Execution**: Replay hooks. Allow dlqautopsy to automatically push safe-to-retry messages back to the primary queue.
-- **Reporting**: Diffing two reports to show delta over time.
+- **Action Execution**: Replay hooks. Allow dlqautopsy to push safe-to-retry messages back to the primary queue. Today dlqautopsy never sends messages anywhere.
 
 ## Long-term Strategy
 

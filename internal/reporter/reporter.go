@@ -177,7 +177,7 @@ func writeTimelineDetail(w io.Writer, index int, t analyzer.Timeline) {
 	muted.Fprintf(w, " messages (%.1f%% of total)\n", t.Percentage)
 
 	labelStyle.Fprintf(w, "      Signatures:     ")
-	fmt.Fprintf(w, "%d unique error hashes\n", t.UniqueSignatures)
+	fmt.Fprintf(w, "%s\n", analyzer.Pluralize(t.UniqueSignatures, "unique error hash", "unique error hashes"))
 
 	labelStyle.Fprintf(w, "      Timeline:       ")
 	fmt.Fprintf(w, "%s → %s ",

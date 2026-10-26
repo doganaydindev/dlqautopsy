@@ -119,7 +119,7 @@ func writeTimelineDetailMarkdown(w io.Writer, index int, t analyzer.Timeline) {
 	fmt.Fprintf(w, "| Field | Value |\n")
 	fmt.Fprintf(w, "|-------|-------|\n")
 	fmt.Fprintf(w, "| Count | **%d** messages (%.1f%% of total) |\n", t.Count, t.Percentage)
-	fmt.Fprintf(w, "| Signatures | %d unique error hashes |\n", t.UniqueSignatures)
+	fmt.Fprintf(w, "| Signatures | %s |\n", analyzer.Pluralize(t.UniqueSignatures, "unique error hash", "unique error hashes"))
 	fmt.Fprintf(w, "| Timeline | %s → %s (%s) |\n",
 		t.FirstOccurrence.Format("2006-01-02 15:04:05"),
 		t.LastOccurrence.Format("2006-01-02 15:04:05"),
