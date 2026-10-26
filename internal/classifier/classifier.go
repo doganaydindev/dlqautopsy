@@ -253,7 +253,7 @@ func (c *Classifier) classify(normalizedError string) classificationResult {
 
 	for _, r := range rules {
 		for _, kw := range r.keywords {
-			if strings.Contains(lower, kw) {
+			if containsKeyword(lower, kw) {
 				return r.result
 			}
 		}
@@ -265,4 +265,56 @@ func (c *Classifier) classify(normalizedError string) classificationResult {
 		severity:       SeverityWarning,
 		retryVerdict:   VerdictNeedsInvestigation,
 	}
+}
+
+// containsKeyword reports whether kw occurs in s (both lower case).
+//
+// Most keywords are plain substrings ("throttl" should match "throttled").
+// Two kinds need boundaries, otherwise they match inside unrelated text:
+//   - all-digit keywords such as "401", "403", "503" must not touch another
+//     digit, so "14030" or "port 45031" do not count as HTTP status codes;
+//   - short keywords of three characters or fewer ("oom", "eof", "dns",
+//     "tls") must start at a word boundary, so "room", "thereof" or "mdns"
+//     do not match, while "OOMKilled" and "tls: handshake" still do.
+func containsKeyword(s, kw string) bool {
+	if kw == "" {
+		return false
+	}
+	numeric := isAllDigits(kw)
+	short := !numeric && len(kw) <= 3
+	if !numeric && !short {
+		return strings.Contains(s, kw)
+	}
+	for from := 0; from <= len(s)-len(kw); {
+		i := strings.Index(s[from:], kw)
+		if i < 0 {
+			return false
+		}
+		start := from + i
+		end := start + len(kw)
+		if numeric {
+			if (start == 0 || !isDigit(s[start-1])) && (end == len(s) || !isDigit(s[end])) {
+				return true
+			}
+		} else if start == 0 || !isAlnum(s[start-1]) {
+			return true
+		}
+		from = start + 1
+	}
+	return false
+}
+
+func isAllDigits(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if !isDigit(s[i]) {
+			return false
+		}
+	}
+	return len(s) > 0
+}
+
+func isDigit(b byte) bool { return b >= '0' && b <= '9' }
+
+func isAlnum(b byte) bool {
+	return isDigit(b) || (b >= 'a' && b <= 'z') || (b >= 'A' && b <= 'Z') || b == '_'
 }
