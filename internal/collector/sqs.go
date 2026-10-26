@@ -17,7 +17,15 @@ import (
 type SQSOptions struct {
 	Purge  bool   // Delete messages from DLQ after successful ingestion
 	Region string // AWS region override (empty = use default)
+	// EmptyReceives is the number of consecutive receives that return no
+	// messages before ingestion stops. Values below 1 are treated as 1, the
+	// default, which stops at the first empty receive.
+	EmptyReceives int
 }
+
+// DefaultEmptyReceives is the number of consecutive empty receives that end
+// ingestion when SQSOptions.EmptyReceives is not set.
+const DefaultEmptyReceives = 1
 
 // SQSApi defines the AWS SQS methods used by the collector.
 type SQSApi interface {
@@ -67,6 +75,12 @@ func (c *SQSCollector) Run(ctx context.Context) error {
 	totalIngested := 0
 	var receiptHandles []string
 
+	maxEmpty := c.opts.EmptyReceives
+	if maxEmpty < 1 {
+		maxEmpty = DefaultEmptyReceives
+	}
+	empty := 0
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -86,9 +100,18 @@ func (c *SQSCollector) Run(ctx context.Context) error {
 		}
 
 		if len(out.Messages) == 0 {
-			fmt.Println("Queue is empty or wait time exceeded. Stopping ingestion.")
-			break
+			empty++
+			if empty >= maxEmpty {
+				if maxEmpty == 1 {
+					fmt.Println("Queue is empty or wait time exceeded. Stopping ingestion.")
+				} else {
+					fmt.Printf("No messages in %d consecutive receives. Stopping ingestion.\n", empty)
+				}
+				break
+			}
+			continue
 		}
+		empty = 0
 
 		for _, msg := range out.Messages {
 			err := c.processMessage(msg)

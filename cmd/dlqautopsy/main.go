@@ -25,6 +25,8 @@ var (
 	limit     int
 	compareTo string
 
+	emptyReceives int
+
 	// sqsClient, when set, replaces the AWS SQS client used by inspect.
 	// Only tests set it.
 	sqsClient collector.SQSApi
@@ -40,6 +42,9 @@ var inspectCmd = &cobra.Command{
 	Use:   "inspect",
 	Short: "Ingest messages from a DLQ into the local storage",
 	RunE: func(cmd *cobra.Command, args []string) error {
+		if emptyReceives < 1 {
+			return fmt.Errorf("--empty-receives must be at least 1, got %d", emptyReceives)
+		}
 		fmt.Printf("Starting Collector for %s...\n", queueURL)
 		fmt.Printf("Using database %s\n", dbPath)
 
@@ -50,8 +55,9 @@ var inspectCmd = &cobra.Command{
 		defer db.Close()
 
 		col := collector.NewSQSCollector(db, queueURL, runName, collector.SQSOptions{
-			Purge:  purge,
-			Region: awsRegion,
+			Purge:         purge,
+			Region:        awsRegion,
+			EmptyReceives: emptyReceives,
 		})
 		if sqsClient != nil {
 			col.Client = sqsClient
@@ -247,6 +253,7 @@ func init() {
 	inspectCmd.Flags().StringVar(&queueURL, "queue-url", "", "The AWS SQS DLQ URL to ingest from")
 	_ = inspectCmd.MarkFlagRequired("queue-url")
 	inspectCmd.Flags().BoolVar(&purge, "purge", false, "Delete messages from DLQ after successful ingestion")
+	inspectCmd.Flags().IntVar(&emptyReceives, "empty-receives", collector.DefaultEmptyReceives, "Stop after this many consecutive receives return no messages (each receive long-polls for up to 5s)")
 	inspectCmd.Flags().StringVar(&awsRegion, "region", "", "AWS region (overrides default config)")
 
 	// Required runName filter for primary commands

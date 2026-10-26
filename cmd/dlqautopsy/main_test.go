@@ -148,3 +148,36 @@ func TestInspectPrintsIngestionCompleteOnce(t *testing.T) {
 		t.Errorf("missing total line. Output:\n%s", out)
 	}
 }
+
+// countingEmptySQS counts receives on a drained queue.
+type countingEmptySQS struct {
+	emptySQS
+	receives int
+}
+
+func (c *countingEmptySQS) ReceiveMessage(ctx context.Context, in *sqs.ReceiveMessageInput, opts ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
+	c.receives++
+	return c.emptySQS.ReceiveMessage(ctx, in, opts...)
+}
+
+func TestInspectEmptyReceivesFlag(t *testing.T) {
+	defer func() { emptyReceives = 1; sqsClient = nil }()
+
+	fake := &countingEmptySQS{}
+	sqsClient = fake
+	out := captureStdout(t, func() {
+		if _, err := executeCommand("inspect", "--name", "er", "--queue-url", "q", "--db", ":memory:", "--empty-receives", "3"); err != nil {
+			t.Errorf("inspect: %v", err)
+		}
+	})
+	if fake.receives != 3 {
+		t.Errorf("made %d receives, want 3", fake.receives)
+	}
+	if !strings.Contains(out, "No messages in 3 consecutive receives. Stopping ingestion.") {
+		t.Errorf("unexpected output:\n%s", out)
+	}
+
+	if _, err := executeCommand("inspect", "--name", "er", "--queue-url", "q", "--db", ":memory:", "--empty-receives", "0"); err == nil {
+		t.Error("expected an error for --empty-receives 0")
+	}
+}

@@ -45,6 +45,7 @@ dlqautopsy inspect --name my-incident --queue-url https://sqs.us-east-1.amazonaw
 # With optional flags:
 #   --purge     Delete the ingested messages from the DLQ after ingestion
 #   --region    Override the AWS region (e.g. us-west-2)
+#   --empty-receives N   Stop after N consecutive empty receives (default 1)
 #   --db        SQLite file to use (default: autopsy.db in the current directory; works on every command)
 dlqautopsy inspect --name my-incident --queue-url <url> --purge --region us-west-2
 
@@ -70,6 +71,8 @@ dlqautopsy diff --name monday-check --compare tuesday-check --format markdown
 # 6. List all stored runs
 dlqautopsy runs
 ```
+
+`inspect` receives up to 10 messages at a time with a 5 second long poll and stops after `--empty-receives` consecutive receives return nothing. The default, 1, stops at the first empty receive. AWS documents that a long-poll receive can, in rare cases, come back empty while the queue still has messages, especially with short wait times, so for a large DLQ or one that is still filling up, `--empty-receives 3` costs at most 10 extra seconds at the end of the run.
 
 `inspect` only reads from the queue (and deletes what it ingested when you pass `--purge`). dlqautopsy never sends messages back to a queue; to move messages from a DLQ back to its source queue, use SQS redrive.
 
