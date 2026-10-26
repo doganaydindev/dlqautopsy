@@ -403,16 +403,16 @@ func WriteDiffJSON(baseRun, compareRun string, baseClasses, compareClasses []sto
 	type diffOutput struct {
 		BaseRun    string                     `json:"base_run"`
 		CompareRun string                     `json:"compare_run"`
-		New        []storage.DiffClassSummary `json:"new_classes"`
-		Resolved   []storage.DiffClassSummary `json:"resolved_classes"`
+		New        []ClassCount               `json:"new_classes"`
+		Resolved   []ClassCount               `json:"resolved_classes"`
 		Worsening  []ClassDelta               `json:"worsening"`
 		Improving  []ClassDelta               `json:"improving"`
 		Base       []storage.DiffClassSummary `json:"base_classes"`
 		Compare    []storage.DiffClassSummary `json:"compare_classes"`
 	}
-	nonNil := func(s []storage.DiffClassSummary) []storage.DiffClassSummary {
+	nonNil := func(s []ClassCount) []ClassCount {
 		if s == nil {
-			return []storage.DiffClassSummary{}
+			return []ClassCount{}
 		}
 		return s
 	}

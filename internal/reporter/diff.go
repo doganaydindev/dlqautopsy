@@ -16,14 +16,26 @@ type ClassDelta struct {
 	ChangePct    float64 `json:"change_pct"`
 }
 
+// ClassCount is one failure class with its total message count across all
+// of its causes, and the worst severity among them.
+type ClassCount struct {
+	FailureClass string `json:"failure_class"`
+	Severity     string `json:"severity"`
+	Count        int    `json:"count"`
+}
+
+func toClassCount(c storage.DiffClassSummary) ClassCount {
+	return ClassCount{FailureClass: c.FailureClass, Severity: c.Severity, Count: c.Count}
+}
+
 // runDiff is the comparison of two runs, aggregated by failure class.
 // Every slice has a fixed order so text, markdown and JSON output are
 // stable between invocations (Go map iteration order is random).
 type runDiff struct {
-	New       []storage.DiffClassSummary // in compare, not in base; count desc, then name
-	Resolved  []storage.DiffClassSummary // in base, not in compare; count desc, then name
-	Worsening []ClassDelta               // count went up; largest increase first, then name
-	Improving []ClassDelta               // count went down; largest decrease first, then name
+	New       []ClassCount // in compare, not in base; count desc, then name
+	Resolved  []ClassCount // in base, not in compare; count desc, then name
+	Worsening []ClassDelta // count went up; largest increase first, then name
+	Improving []ClassDelta // count went down; largest decrease first, then name
 }
 
 func (d runDiff) empty() bool {
@@ -37,13 +49,13 @@ func computeDiff(baseClasses, compareClasses []storage.DiffClassSummary) runDiff
 	var d runDiff
 	for name, c := range compareMap {
 		if _, found := baseMap[name]; !found {
-			d.New = append(d.New, c)
+			d.New = append(d.New, toClassCount(c))
 		}
 	}
 	for name, c := range baseMap {
 		cc, found := compareMap[name]
 		if !found {
-			d.Resolved = append(d.Resolved, c)
+			d.Resolved = append(d.Resolved, toClassCount(c))
 			continue
 		}
 		delta := ClassDelta{
@@ -64,7 +76,7 @@ func computeDiff(baseClasses, compareClasses []storage.DiffClassSummary) runDiff
 		}
 	}
 
-	byCount := func(s []storage.DiffClassSummary) {
+	byCount := func(s []ClassCount) {
 		sort.Slice(s, func(i, j int) bool {
 			if s[i].Count != s[j].Count {
 				return s[i].Count > s[j].Count

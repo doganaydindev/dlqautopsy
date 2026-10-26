@@ -33,7 +33,7 @@ func diffFixture() (base, compare []storage.DiffClassSummary) {
 	return base, compare
 }
 
-func names(s []storage.DiffClassSummary) []string {
+func names(s []ClassCount) []string {
 	var out []string
 	for _, c := range s {
 		out = append(out, c.FailureClass)
@@ -94,8 +94,8 @@ func TestWriteDiffJSONHasComputedSections(t *testing.T) {
 	out := captureStdout(func() { WriteDiffJSON("a", "b", base, compare) })
 
 	var got struct {
-		New       []storage.DiffClassSummary `json:"new_classes"`
-		Resolved  []storage.DiffClassSummary `json:"resolved_classes"`
+		New       []ClassCount               `json:"new_classes"`
+		Resolved  []ClassCount               `json:"resolved_classes"`
 		Worsening []ClassDelta               `json:"worsening"`
 		Improving []ClassDelta               `json:"improving"`
 		Base      []storage.DiffClassSummary `json:"base_classes"`
@@ -111,6 +111,17 @@ func TestWriteDiffJSONHasComputedSections(t *testing.T) {
 	w := got.Worsening[0]
 	if w.FailureClass != "Up Big" || w.BaseCount != 10 || w.CompareCount != 30 || w.Change != 20 || w.ChangePct != 200 {
 		t.Errorf("unexpected worsening[0]: %+v", w)
+	}
+	if r := got.Resolved[0]; r.FailureClass != "Big Gone" || r.Count != 9 || r.Severity != "warning" {
+		t.Errorf("unexpected resolved[0]: %+v", r)
+	}
+	if !strings.Contains(out, `"resolved_classes": [
+    {
+      "failure_class": "Big Gone",
+      "severity": "warning",
+      "count": 9
+    },`) {
+		t.Errorf("resolved_classes should hold class totals only (no per-cause fields):\n%s", out)
 	}
 	if len(got.Base) != len(base) || len(got.Compare) != len(compare) {
 		t.Errorf("raw class lists not kept")
